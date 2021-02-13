@@ -10,6 +10,8 @@ class animator(object):
     Maybe it has to inherit from matplotlib I do not know
     """
 
+    ### PLACEHOLDER ###
+
 
 def main():
     pass
