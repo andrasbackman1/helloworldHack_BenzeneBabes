@@ -1,6 +1,5 @@
 import numpy as np
 import time
-from Simulation import simulation
 
 """
 Folder intended to contain the class that creates the molecule objects
@@ -32,67 +31,31 @@ class Molecule(object):
         self.position = position
         self.velocity = velocity
 
-    def __str__(self):
-        return f"Mass: {self.mass}\nPosition: {self.position}\nVelocity: {self.velocity}"
+    def flip_x_velocity(self):
+        #flip x
+        self.velocity = ((-1)*self.velocity[0], self.velocity[1])
 
+    def flip_y_velocity(self):
+        self.velocity = (self.velocity[0], (-1)*self.velocity[1])
 
-    ###### PLACEHOLDER #####
-
-    def next_step(self, delta_t=1.0):
-        old_position = self.position
-        new_position = old_position + self.velocity*int(delta_t)
-        self.position = new_position
-
-    def change_velocity(self, new_velocity):
-        self.velocity = new_velocity
-
-    def collide_with_wall(self, wall):
-        #from simulation take wall coordinates x,y
-        #change velocity wall 
-        x_vel = self.velocity[0]
-        y_vel = self.velocity[1]
-
+    def flip_x_position(self):
         x_position = self.position[0]
         y_position = self.position[1]
 
-        if y_position == 0: #top
-            #change in velocity
-            # x_vel stays the same
-            # y_vel flips
-            y_vel = (-1)*y_vel
-            self.change_velocity(np.array([x_vel, y_vel]))
-            '''
-        elif y_position =bottom #bottom wall
-            y_vel = y_vel * (-1)
-            self.velocity = change_velocity(np.array(x_vel,y_vel))
-            '''
-        elif x_position == 0: #left wall
-            x_vel = x_vel * (-1)
-            self.change_velocity(np.array([x_vel,y_vel]))
-            '''
-        elif x_position =  right #right
-            x_vel = x_vel * (-1)
-            self.velocity = change_velocity(np.array(x_vel,y_vel))
-            '''
+        x_position = (-1)*x_position
+        self.position = np.array([x_position, y_position], dtype = "int32")
+        return self.position[0]
 
+    def flip_y_position(self):
+        x_position = self.position[0]
+        y_position = self.position[1]
 
-
-
-    def collide_with_molecule(self,):
-        pass
-
-    def updatePosition(self):
-        """
-        called by iterator in simulation class. Takes index
-        and adds x + dx and y + dy.
-        
-        Input:
-        Index
-
-        Output:
-        New index
-        """
-        return 2, 3
+        y_position = (-1)*y_position
+        self.position = np.array([x_position, y_position], dtype = "int32")
+        return self.position[1]
+    
+    def change_position(self, newPosition):
+        self.position = newPosition
 
 
 def main():
@@ -103,19 +66,7 @@ def main():
         hydrogen.next_step()
         hydrogen.collide_with_wall(5)
 
-    
-'''
-    delta_t = 0.2
-    time_horizon = 10
-    for i in range(time_horizon):
-        print(f"Time: {delta_t*i}")
-        print(hydrogen)
-        hydrogen.next_step()
-        time.sleep(1)
-'''
-
 
 
 if __name__ == "__main__":
-
     main()
