@@ -6,10 +6,13 @@ Intends to simulate the motion of molecules of an ideal gas using cellular autom
 
 """
 from molecules import Molecule
-from random import randint
-from math import sin, cos, sqrt
+from random import uniform, randint
+from math import sin, cos, sqrt, pi
 import scipy.stats as stats
 import matplotlib.pyplot as plt
+import numpy as np
+import sys
+from matplotlib.animation import FuncAnimation
 
 
 class simulation(object):
@@ -17,7 +20,7 @@ class simulation(object):
     Attributes:
     * Temperature
     * Number of molecules / density
-    * Size of array
+    * Size of array 
     * Dimensions (literall size in nm)
 
 
@@ -32,27 +35,35 @@ class simulation(object):
         Could also be its own class
     """
 
-    def __init__(self, temperature = 298.15, size = 500, steps = 50, density = 0.01): # Think it should take temperature, density/number of molecules, size, number of time Steps, and array size
+    def __init__(self, temperature = 298, size = 1000, steps = 100, density = 0.001, timestep = 1): # Think it should take temperature, density/number of molecules, size, number of time Steps, and array size
         self.temperature = temperature
         self.size = size
         self.steps = steps
         self.density = density
+        self.timestep = timestep
 
         # Creating an n x n array
         lst=[0 for i in range(self.size)]
         # Indexing is [i][j] where i is the row and j is the column
-        self.array = [lst for j in range(self.size)]
-
+        self.array = [lst.copy() for j in range(self.size)]
 
         self.controller()
         pass
 
     def controller(self):
+        All_states = np.zeros((self.steps, self.size, self.size))
+
         array = self.initiateArray(self.array, self.temperature)
         # update animation here
-        array = self.iterator(array)
+        
+        for step in range(self.steps):
+            array = self.iterator(array)
+            All_states = self.record_all_states(array, All_states, step)
+        
+        self.animator(All_states)
+        
         print("finished")
-        pass
+        
 
     def initiateArray(self, array, temperature):
         """
@@ -63,32 +74,30 @@ class simulation(object):
         but the velocites need to be fitted to a boltzmann distribution.
 
         INPUTS:
+        Array
         Temperature (>0 K)
-        Array (2D slice of a 3D array)
 
         RETURNS:
         Modified array
         """
+        
         number_of_molecules = int(self.density*self.size**2)
-
         x_indexies = [randint(0, self.size - 1) for i in range(number_of_molecules)]
         y_indexies = [randint(0, self.size - 1) for i in range(number_of_molecules)]
         
-        theta = [randint(0, 360) for i in range(number_of_molecules)]
+        theta = [uniform(0,2*pi) for i in range(number_of_molecules)]
         velocities = self.generateVelocities(number_of_molecules)
         for i in range(len(x_indexies)):
             x_vel = velocities[i]*cos(theta[i])
             y_vel = velocities[i]*sin(theta[i])
-            print(x_vel,y_vel)
 
-            array[y_indexies[i]][x_indexies[i]] = Molecule(1, (x_indexies[i], y_indexies[i]), (x_vel, y_vel))
-        
+            array[x_indexies[i]][y_indexies[i]] = Molecule(1, (x_indexies[i], y_indexies[i]), (x_vel, y_vel))
         return array 
     
     def generateVelocities(self, array_size):
         boltzmann_constant = 1.38*10**-23
         Hydrogen_mass = 1.67*10**-27
-        rms_velocity = sqrt((3*boltzmann_constant*self.temperature)/Hydrogen_mass)
+        rms_velocity = sqrt((3*boltzmann_constant*self.temperature)/Hydrogen_mass)*pow(10,-3) # Scales to be units per iteration
 
         maxwell = stats.maxwell
         data = maxwell.rvs(loc=0, scale=rms_velocity, size=10000)
@@ -111,28 +120,95 @@ class simulation(object):
         """
         new_array = array.copy()
 
-        for row in new_array:
-            for element in row:
+        col_ind = 0
+        for column in new_array:
+            for element in column:
                 if element == 0:
                     continue
                 else:
-                    newX, newY = element.updatePosition() ## x and y are integers that correspond to their new index
-                    #new_array[newY][newX] = element
+                    new_array[col_ind][column.index(element)] = 0
+                    newPosition = self.updatePosition(element) # x and y are integers that correspond to their new index
                     
+                    if new_array[newPosition[0]][newPosition[1]] == 0:
+                        new_array[newPosition[0]][newPosition[1]] = element
+                    else:
+                        element2 = new_array[newPosition[0]][newPosition[1]]
+                        new_position = simulation.detectCollision(element, element2)
+                        new_array[new_position[0]][new_position[1]] = element2
+            col_ind += 1
+        
+        #self.detectCollision(new_array)         
         return new_array
+    
+    def updatePosition(self, object):
+        
+        dx = object.velocity[0]*self.timestep
+        dy = object.velocity[1]*self.timestep
+        dArr = np.array([dx, dy])
+        new_position = object.position + dArr
+        
+        if new_position[0] < 0:
+            object.flip_x_velocity()
+            newX = (-1)*new_position[0]
+            new_position[0] = newX
+        elif new_position[0] > self.size: #in x-direction
+            object.flip_x_velocity()
+            newX = 2*self.size - new_position[0]
+            new_position[0] = newX
 
-    def animator(self):
-        """
-        send the updated array to the animation class
+        if new_position[1] < 0:
+            object.flip_y_velocity()
+            newY = (-1)*new_position[1]
+            new_position[1] = newY
+        elif new_position[1] > self.size: #in x-direction
+            object.flip_y_velocity()
+            newY = 2*self.size - new_position[1]
+            new_position[1] = newY
+        
+        object.change_position(new_position)
 
-        or maybe the animation is controlled here?
-        """
-        pass
+        return new_position.astype("int64")
+
+    @staticmethod
+    def detectCollision(element1, element2):
+        element1.flip_x_velocity()
+        element1.flip_y_velocity()
+
+        element2.flip_x_velocity()
+        element2.flip_y_velocity()
+
+        new_position = np.array([element2.position[0], element2.position[1]-1])
+        element2.change_position(new_position)
+
+        return element2.position.astype("int64")
+            
+    def record_all_states(self, array, All_states, step):
+        numArr = np.zeros((self.size, self.size))
+        for column in range(self.size):
+            for row in range(self.size):
+                if array[row][column] != 0:
+                    numArr[row, column] = 1
+        All_states[step, :, :] = numArr
+        
+        return All_states
+
+    def animator(self, array):
+        ### Needs more work. IDK how to do this, Give up for today
+        fig, _ = plt.subplots()
+        ln = plt.imshow(array[0,:,:], origin = "lower", cmap = "plasma")
+        
+        def anim_func(index):
+            data = array[index,:,:]
+            ln.set_data(data)
+            return ln
+        
+        anim = FuncAnimation(fig, anim_func, frames = range(1,len(array)), blit = False)
+        plt.show()
 
 
 def main():
     Simulation_instance = simulation()
-    pass
+    
 
 if __name__ == "__main__":
     main()
